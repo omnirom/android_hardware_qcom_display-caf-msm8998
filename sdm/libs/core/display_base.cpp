@@ -259,6 +259,11 @@ DisplayError DisplayBase::Prepare(LayerStack *layer_stack) {
 
   comp_manager_->PostPrepare(display_comp_ctx_, &hw_layers_);
 
+  error = ValidateHDR(layer_stack);
+  if (error != kErrorNone) {
+    DLOGW("ValidateHDR failed");
+  }
+
   return error;
 }
 
@@ -725,7 +730,7 @@ DisplayError DisplayBase::SetColorMode(const std::string &color_mode) {
 
   DisplayError error = kErrorNone;
   // Set client requests when not in HDR Mode or lut generation is disabled
-  if (disable_hdr_lut_gen_ || !hdr_playback_mode_) {
+  if (disable_hdr_lut_gen_ || !hdr_playback_) {
     error = SetColorModeInternal(color_mode);
     if (error != kErrorNone) {
       return error;
@@ -1204,6 +1209,28 @@ DisplayError DisplayBase::InitializeColorModes() {
   return kErrorNone;
 }
 
+DisplayError DisplayBase::SetHDRMode(bool set) {
+  DisplayError error = kErrorNone;
+
+  if (color_mgr_ && !disable_hdr_lut_gen_) {
+    if (set) {
+      DLOGI("Setting color mode = %s", hdr_color_mode_.c_str());
+      error = SetColorModeInternal(hdr_color_mode_);
+    } else {
+      // Do not apply HDR Mode when hdr lut generation is disabled
+      DLOGI("Setting color mode = %s", current_color_mode_.c_str());
+      // HDR playback off - set prev mode
+      error = SetColorModeInternal(current_color_mode_);
+    }
+  }
+
+  // DPPS and HDR features are mutually exclusive
+  comp_manager_->ControlDpps(!set);
+  hdr_mode_ = set;
+
+  return error;
+}
+
 DisplayError DisplayBase::HandleHDR(LayerStack *layer_stack) {
   DisplayError error = kErrorNone;
 
@@ -1214,26 +1241,49 @@ DisplayError DisplayBase::HandleHDR(LayerStack *layer_stack) {
 
   if (!layer_stack->flags.hdr_present) {
     //  HDR playback off - set prev mode
-    if (hdr_playback_mode_) {
-      hdr_playback_mode_ = false;
-      if (color_mgr_ && !disable_hdr_lut_gen_) {
-        // Do not apply HDR Mode when hdr lut generation is disabled
-        DLOGI("Setting color mode = %s", current_color_mode_.c_str());
-        //  HDR playback off - set prev mode
-        error = SetColorModeInternal(current_color_mode_);
+    if (hdr_playback_) {
+      hdr_playback_ = false;
+      if (hdr_mode_) {
+        error = SetHDRMode(false);
       }
-      comp_manager_->ControlDpps(true);  // Enable Dpps
     }
   } else {
     // hdr is present
-    if (!hdr_playback_mode_ && !layer_stack->flags.animating) {
+    if (!hdr_playback_ && !layer_stack->flags.animating) {
       // hdr is starting
-      hdr_playback_mode_ = true;
-      if (color_mgr_ && !disable_hdr_lut_gen_) {
-        DLOGI("Setting HDR color mode = %s", hdr_color_mode_.c_str());
-        error = SetColorModeInternal(hdr_color_mode_);
+      hdr_playback_ = true;
+      error = SetHDRMode(true);
+      if (error != kErrorNone) {
+        DLOGW("Failed to set HDR mode");
       }
-      comp_manager_->ControlDpps(false);  // Disable Dpps
+    } else if (hdr_playback_ && !hdr_mode_) {
+      error = SetHDRMode(true);
+      if (error != kErrorNone) {
+        DLOGW("Failed to set HDR mode");
+      }
+    }
+  }
+
+  return error;
+}
+
+DisplayError DisplayBase::ValidateHDR(LayerStack *layer_stack) {
+  DisplayError error = kErrorNone;
+
+  if (display_type_ != kPrimary) {
+    // Handling is needed for only primary displays
+    return kErrorNone;
+  }
+
+  if (hdr_playback_) {
+    // HDR color mode is set when hdr layer is present in layer_stack.
+    // If client flags HDR layer as skipped, then blending happens
+    // in SDR color space. Hence, need to restore the SDR color mode.
+    if (layer_stack->blend_cs != ColorPrimaries_BT2020) {
+      error = SetHDRMode(false);
+      if (error != kErrorNone) {
+        DLOGW("Failed to restore SDR mode");
+      }
     }
   }
 
