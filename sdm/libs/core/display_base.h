@@ -118,6 +118,8 @@ class DisplayBase : public DisplayInterface, DumpImpl {
   void CommitLayerParams(LayerStack *layer_stack);
   void PostCommitLayerParams(LayerStack *layer_stack);
   DisplayError HandleHDR(LayerStack *layer_stack);
+  DisplayError ValidateHDR(LayerStack *layer_stack);
+  DisplayError SetHDRMode(bool set);
 
   // DumpImpl method
   void AppendDump(char *buffer, uint32_t length);
@@ -163,7 +165,8 @@ class DisplayBase : public DisplayInterface, DumpImpl {
   uint32_t req_mixer_height_ = 0;
   std::string current_color_mode_ = "hal_native";
   std::string hdr_color_mode_ = "hal_hdr";
-  bool hdr_playback_mode_ = false;
+  bool hdr_playback_ = false;
+  bool hdr_mode_ = false;
   int disable_hdr_lut_gen_ = 0;
 };
 
