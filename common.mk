@@ -24,6 +24,7 @@ use_hwc2 := false
 ifeq ($(TARGET_USES_HWC2), true)
     use_hwc2 := true
     common_flags += -DVIDEO_MODE_DEFER_RETIRE_FENCE
+    common_flags += -DUSE_HWC2
 endif
 
 common_includes := $(display_top)/libqdutils
@@ -74,8 +75,11 @@ kernel_includes :=
 
 # Executed only on QCOM BSPs
 ifeq ($(TARGET_USES_QCOM_BSP),true)
-# Enable QCOM Display features
-   common_flags += -DQTI_BSP
+    common_flags += -DQTI_BSP
+endif
+
+ifeq ($(TARGET_USES_HWC_DIM_LAYER_COLOR),true)
+    common_flags += -DUSE_HWC_DIM_LAYER_COLOR
 endif
 
 ifeq ($(TARGET_IS_HEADLESS),true)
