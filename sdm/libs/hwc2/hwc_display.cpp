@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright 2015 The Android Open Source Project
@@ -89,8 +89,11 @@ HWC2::Error HWCColorMode::DeInit() {
 uint32_t HWCColorMode::GetColorModeCount() {
   uint32_t count = UINT32(color_mode_transform_map_.size());
   DLOGI("Supported color mode count = %d", count);
-
+#ifdef EXCLUDE_DISPLAY_PP
+  return count;
+#else
   return std::max(1U, count);
+#endif
 }
 
 HWC2::Error HWCColorMode::GetColorModes(uint32_t *out_num_modes,
@@ -120,6 +123,16 @@ HWC2::Error HWCColorMode::SetColorMode(android_color_mode_t mode) {
   }
 
   return status;
+}
+
+HWC2::Error HWCColorMode::RestoreColorTransform() {
+  DisplayError error = display_intf_->SetColorTransform(kColorTransformMatrixCount, color_matrix_);
+  if (error != kErrorNone) {
+    DLOGE("Failed to set Color Transform");
+    return HWC2::Error::BadParameter;
+  }
+
+  return HWC2::Error::None;
 }
 
 HWC2::Error HWCColorMode::SetColorTransform(const float *matrix, android_color_transform_t hint) {
@@ -192,8 +205,10 @@ void HWCColorMode::PopulateColorModes() {
   // SDM returns modes which is string combination of mode + transform.
   DisplayError error = display_intf_->GetColorModeCount(&color_mode_count);
   if (error != kErrorNone || (color_mode_count == 0)) {
+#ifndef EXCLUDE_DISPLAY_PP
     DLOGW("GetColorModeCount failed, use native color mode");
     PopulateTransform(HAL_COLOR_MODE_NATIVE, "native", "identity");
+#endif
     return;
   }
 
@@ -391,6 +406,9 @@ int HWCDisplay::Deinit() {
   }
 
   delete client_target_;
+  for (auto hwc_layer : layer_set_) {
+    delete hwc_layer;
+  }
 
   if (color_mode_) {
     color_mode_->DeInit();
