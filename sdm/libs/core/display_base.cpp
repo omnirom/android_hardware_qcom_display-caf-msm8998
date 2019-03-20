@@ -158,7 +158,7 @@ DisplayError DisplayBase::BuildLayerStackStats(LayerStack *layer_stack) {
     hw_layers_info.app_layer_count++;
   }
 
-  DLOGD_IF(kTagNone, "LayerStack layer_count: %d, app_layer_count: %d, gpu_target_index: %d, "
+  DLOGD_IF(kTagDisplay, "LayerStack layer_count: %d, app_layer_count: %d, gpu_target_index: %d, "
            "display type: %d", layers.size(), hw_layers_info.app_layer_count,
            hw_layers_info.gpu_target_index, display_type_);
 
@@ -339,7 +339,7 @@ DisplayError DisplayBase::Commit(LayerStack *layer_stack) {
   return kErrorNone;
 }
 
-DisplayError DisplayBase::Flush() {
+DisplayError DisplayBase::Flush(bool secure) {
   lock_guard<recursive_mutex> obj(recursive_mutex_);
   DisplayError error = kErrorNone;
 
@@ -347,7 +347,7 @@ DisplayError DisplayBase::Flush() {
     return kErrorPermission;
   }
   hw_layers_.info.hw_layers.clear();
-  error = hw_intf_->Flush();
+  error = hw_intf_->Flush(secure);
   if (error == kErrorNone) {
     comp_manager_->Purge(display_comp_ctx_);
     needs_validate_ = true;
@@ -431,7 +431,7 @@ DisplayError DisplayBase::SetDisplayState(DisplayState state) {
   switch (state) {
   case kStateOff:
     hw_layers_.info.hw_layers.clear();
-    error = hw_intf_->Flush();
+    error = hw_intf_->Flush(false);
     if (error == kErrorNone) {
       error = hw_intf_->PowerOff();
     }

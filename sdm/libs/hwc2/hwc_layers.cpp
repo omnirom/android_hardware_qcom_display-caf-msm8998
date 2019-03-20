@@ -25,6 +25,7 @@
 #include <gr.h>
 #endif
 #include <utils/debug.h>
+#include <utils/utils.h>
 #include <cmath>
 
 #define __CLASS__ "HWCLayer"
@@ -254,6 +255,7 @@ HWC2::Error HWCLayer::SetLayerBuffer(buffer_handle_t buffer, int32_t acquire_fen
   layer_buffer->planes[0].fd = ion_fd_;
   layer_buffer->planes[0].offset = handle->offset;
   layer_buffer->planes[0].stride = UINT32(handle->width);
+  CloseFd(&layer_buffer->acquire_fence_fd);
   layer_buffer->acquire_fence_fd = acquire_fence;
   layer_buffer->size = handle->size;
   layer_buffer->buffer_id = reinterpret_cast<uint64_t>(handle);
@@ -530,6 +532,12 @@ LayerBufferFormat HWCLayer::GetSDMFormat(const int32_t &source, const int flags)
       case HAL_PIXEL_FORMAT_NV12_ENCODEABLE:
         format = kFormatYCbCr420SPVenusUbwc;
         break;
+      case HAL_PIXEL_FORMAT_RGBA_1010102:
+        format = kFormatRGBA1010102Ubwc;
+        break;
+      case HAL_PIXEL_FORMAT_RGBX_1010102:
+        format = kFormatRGBX1010102Ubwc;
+        break;
       case HAL_PIXEL_FORMAT_YCbCr_420_TP10_UBWC:
         format = kFormatYCbCr420TP10Ubwc;
         break;
@@ -682,14 +690,8 @@ DisplayError HWCLayer::SetMetaData(const private_handle_t *pvt_handle, Layer *la
   }
 
   int32_t interlaced = 0;
-  bool interlace = layer_buffer->flags.interlace;
-  if (getMetaData(handle, GET_PP_PARAM_INTERLACED, &interlaced) == 0) {
-    interlace = interlaced ? true : false;
-  }
-  if (interlace != layer_buffer->flags.interlace) {
-    DLOGI("Layer buffer interlaced metadata has changed. old=%d, new=%d",
-          layer_buffer->flags.interlace, interlace);
-  }
+  getMetaData(handle, GET_PP_PARAM_INTERLACED, &interlaced);
+  bool interlace = interlaced ? true : false;
 
   uint32_t linear_format = 0;
   if (getMetaData(handle, GET_LINEAR_FORMAT, &linear_format) == 0) {
